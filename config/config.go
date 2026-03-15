@@ -4,7 +4,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
@@ -15,18 +14,11 @@ type Config struct {
 	RedisPassword string
 	ServerPort    string
 	MarkdownDir   string // Path to markdown files directory for static serving
-
-	// Elasticsearch configuration
-	ElasticsearchEnabled  bool
-	ElasticsearchURL      string
-	ElasticsearchUsername string
-	ElasticsearchPassword string
 }
 
 // LoadConfig loads configuration from environment variables with fallback defaults
 // Returns a Config struct with all necessary application settings
 func LoadConfig() *Config {
-	esEnabled, _ := strconv.ParseBool(getEnv("ELASTICSEARCH_ENABLED", "false"))
 
 	return &Config{
 		RedisHost:     getEnv("REDIS_HOST", "redis"),
@@ -34,12 +26,6 @@ func LoadConfig() *Config {
 		RedisPassword: getSecret("REDIS_PASSWORD"),
 		ServerPort:    getEnv("SERVER_PORT", "8080"),
 		MarkdownDir:   getEnv("MARKDOWN_DIR", "../Markdown"), // Default path for local development
-
-		// Elasticsearch settings
-		ElasticsearchEnabled:  esEnabled,
-		ElasticsearchURL:      getEnv("ELASTICSEARCH_URL", "http://note-stacks-elasticsearch:9200"),
-		ElasticsearchUsername: getSecret("ELASTICSEARCH_USERNAME"),
-		ElasticsearchPassword: getSecret("ELASTICSEARCH_PASSWORD"),
 	}
 }
 

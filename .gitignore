@@ -37,3 +37,6 @@ main
 
 # Docker volumes
 data/
+
+# Binary
+ns-api

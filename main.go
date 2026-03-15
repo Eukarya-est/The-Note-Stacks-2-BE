@@ -13,7 +13,6 @@ import (
 	"note-stacks-backend/middleware"
 	"note-stacks-backend/repository"
 
-	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 )
@@ -36,38 +35,7 @@ func main() {
 	log.Println("Successfully connected to Redis")
 
 	// Initialize repository
-	var repo repository.Repository
-	redisRepo := repository.NewRedisRepository(redisClient)
-
-	// Initialize Elasticsearch if enabled
-	var esRepo *repository.ElasticsearchRepository
-	if cfg.ElasticsearchEnabled {
-		esClient, err := initElasticsearch(cfg)
-		if err != nil {
-			log.Printf("Warning: Failed to initialize Elasticsearch: %v", err)
-			log.Println("Falling back to Redis-only search")
-			repo = redisRepo
-		} else {
-			log.Println("Successfully connected to Elasticsearch")
-
-			// Create Elasticsearch repository wrapper
-			esRepo = repository.NewElasticsearchRepository(esClient, redisRepo)
-
-			// Initialize the index
-			if err := esRepo.InitializeIndex(context.Background()); err != nil {
-				log.Printf("Warning: Failed to initialize Elasticsearch index: %v", err)
-			} else {
-				log.Println("Elasticsearch index initialized")
-			}
-
-			// Use composite repository that wraps both
-			repo = repository.NewCompositeRepository(redisRepo, esRepo)
-			log.Println("Using Elasticsearch-enhanced repository")
-		}
-	} else {
-		log.Println("Elasticsearch disabled, using Redis-only repository")
-		repo = redisRepo
-	}
+	repo := repository.NewRedisRepository(redisClient)
 
 	// Initialize handlers
 	handler := handlers.NewHandler(repo)
@@ -101,42 +69,6 @@ func initRedis(cfg *config.Config) *redis.Client {
 	})
 
 	return client
-}
-
-// initElasticsearch creates and configures an Elasticsearch client
-// cfg: Configuration containing Elasticsearch connection details
-// Returns a configured Elasticsearch client instance
-func initElasticsearch(cfg *config.Config) (*elasticsearch.Client, error) {
-	esCfg := elasticsearch.Config{
-		Addresses: []string{cfg.ElasticsearchURL},
-	}
-
-	// Add authentication if provided
-	if cfg.ElasticsearchUsername != "" {
-		esCfg.Username = cfg.ElasticsearchUsername
-		esCfg.Password = cfg.ElasticsearchPassword
-	}
-
-	client, err := elasticsearch.NewClient(esCfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
-	}
-
-	// Test connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	res, err := client.Info(client.Info.WithContext(ctx))
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Elasticsearch: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.IsError() {
-		return nil, fmt.Errorf("elasticsearch connection error: %s", res.String())
-	}
-
-	return client, nil
 }
 
 // setupRouter configures the Gin router with all routes and middleware
@@ -214,15 +146,6 @@ func setupRouter(handler *handlers.Handler, cfg *config.Config) *gin.Engine {
 		api.PUT("/events/:id", handler.UpdateCalendarEvent)
 		api.DELETE("/events/:id", handler.DeleteCalendarEvent)
 
-		// Advanced search endpoint (when Elasticsearch is enabled)
-		api.GET("/notes/search/advanced", handler.AdvancedSearch)
-
-		// Reindex endpoint (admin only - should be protected in production)
-		adminGroup := api.Group("/admin")
-		adminGroup.Use(middleware.RequireAdminAuth())
-		{
-			adminGroup.POST("/reindex", handler.ReindexNotes)
-		}
 	}
 
 	return router
