@@ -237,7 +237,7 @@ func (r *RedisRepository) GetNotesByCover(ctx context.Context, coverID string) (
 	return notes, nil
 }
 
-// SearchNotes searches for notes by title (case-insensitive substring match)
+// SearchNotes searches for notes by title or content (case-insensitive substring match)
 // ctx: Context for the operation
 // query: The search query string
 func (r *RedisRepository) SearchNotes(ctx context.Context, query string) ([]*models.Note, error) {
@@ -252,8 +252,8 @@ func (r *RedisRepository) SearchNotes(ctx context.Context, query string) ([]*mod
 		if err != nil {
 			continue
 		}
-		// Simple case-insensitive substring match
-		if note.Display && contains(note.Title, query) {
+		// Case-insensitive substring match on title or content
+		if note.Display && (contains(note.Title, query) || contains(note.Content, query)) {
 			notes = append(notes, note)
 		}
 	}
